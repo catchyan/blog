@@ -101,4 +101,7 @@ theme: maple
 # Deployment
 ## Docs: https://hexo.io/docs/one-command-deployment
 deploy:
-  type: ''
+  type: git
+  repo: https://github.com/catchyan/catchyan.github.io.git
+  branch: main
+  message: 更新于 {{ now('YYYY-MM-DD HH:mm:ss') }}
