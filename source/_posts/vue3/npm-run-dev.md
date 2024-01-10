@@ -7,9 +7,7 @@ categories:
 > 本系列文章旨在学习 `Vue.js` 源码，从源码的角度去理解 `Vue.js` 的设计思想和实现原理。本系列文章的源码版本为发文时最新版本 [3.4.3](https://github.com/vuejs/core/tree/v3.4.3)。本系列文章顺序会按照 `Vue.js` 官网的[深度指南](https://cn.vuejs.org/guide/introduction.html)顺序进行分析。笔者能力有限，如有错误，欢迎 [issue](https://github.com/catchyan/blog/issues) 指正。
 
 <!-- more -->
-```bash
-npm run dev
-```
+# `npm run dev`
 在 `demo` 项目中执行 `npm run dev` 命令，会执行 `package.json` 中的 `scripts` 中的 `dev` 命令，`dev` 命令的内容如下：
 ```json
 ...
@@ -29,18 +27,18 @@ npm run dev
 │   │       ├── bin
 │   │       │   └── vite.js
 ```
-因本文的目的是学习 `Vue.js` 源码，所以不会去很深入的解析 `vite` 的源码。只跟着 `npm run dev` 的流程看下去。
-
 `npm run dev` 对应的不带参数的 `vite` 命令会直接进入start方法
 
 vite/packages/vite/bin/vite.js: 50
 ```js
-// 前面的代码判断了启动参数，日志输出级别，是否开启node inspector等逻辑
+// 在这之前的代码判断了启动参数，包括日志输出级别，是否开启node inspector等
 function start() {
   return import('../dist/node/cli.js')
 }
 ```
-`start` 方法加载了 `../dist/node/cli.js`，对应源码为 `vite/packages/vite/src/node/cli.ts`。在 `cli.ts` 中我们可以看到 `vite` 使用 [cac](https://github.com/cacjs/cac) 库构建命令行参数，`vite` 命令对应设置如下：
+`start` 方法加载了 `../dist/node/cli.js`，对应源码为 `vite/packages/vite/src/node/cli.ts`。在 `cli.ts` 中可以看到 `vite` 使用 [cac](https://github.com/cacjs/cac) 库构建命令行参数，`vite` 命令对应设置如下：
+
+vite\packages\vite\src\node\cli.ts: 136
 ```js
 // dev
 cli
@@ -66,11 +64,12 @@ cli
     `[boolean] force the optimizer to ignore the cache and re-bundle`,
   )
   .action(async (root: string, options: ServerOptions & GlobalCLIOptions) => {
-    // 这个方法用于处理命令行重复设置的属性，如果一个属性重复则取最后一个设置的值
+    // 这个方法用于处理命令行重复设置的属性，如果一个属性重复，取最后一个设置的值
     filterDuplicateOptions(options)
     
     const { createServer } = await import('./server')
     try {
+      // 使用上面这些命令行参数来创建服务
       const server = await createServer({
         root,
         base: options.base,
@@ -85,7 +84,7 @@ cli
       if (!server.httpServer) {
         throw new Error('HTTP server not available')
       }
-
+      // 启动服务
       await server.listen()
 
       const info = server.config.logger.info
@@ -100,7 +99,7 @@ cli
         : ''
       const hasExistingLogs =
         process.stdout.bytesWritten > 0 || process.stderr.bytesWritten > 0
-
+      // 输出启动信息
       info(
         `\n  ${colors.green(
           `${colors.bold('VITE')} v${VERSION}`,
@@ -109,7 +108,7 @@ cli
           clear: !hasExistingLogs,
         },
       )
-
+      // 打印服务的url
       server.printUrls()
       const customShortcuts: CLIShortcut<typeof server>[] = []
       if (profileSession) {
@@ -137,6 +136,7 @@ cli
           },
         })
       }
+      // 绑定快捷键
       server.bindCLIShortcuts({ print: true, customShortcuts })
     } catch (e) {
       const logger = createLogger(options.logLevel)
@@ -148,3 +148,30 @@ cli
     }
   })
 ```
+总的来说，`vite` 命令的作用就是创建一个服务，然后启动服务。在创建服务的过程中，会根据命令行参数设置服务的一些配置，比如 `host`、`port`、`cors` 等。创建服务的过程中，会调用 `createServer` 方法，而插件的注册就是在 `createServer` 方法中进行的。接下来进入 `createServer` 方法的实现，插件的注册，以及HMR（热更新）的实现。
+
+## `createServer` 方法
+`createServer` 方法的实现在 `vite\packages\vite\src\node\server\index.ts: 385`, 整个方法对一个 `server` 对象进行了配置并返回
+
+### 配置文件读取
+```js
+_createServer()
+  // vite\packages\vite\src\node\config.ts: 401
+  resolveConfig()
+    // vite\packages\vite\src\node\config.ts: 943
+    loadConfigFromFile()
+```
+配置文件读取规则为文件名包含在以下数组中：
+```
+[
+  "vite.config.js",
+  "vite.config.mjs",
+  "vite.config.ts",
+  "vite.config.cjs",
+  "vite.config.mts",
+  "vite.config.cts",
+]
+```
+读取到配置文件后会继续读取离配置文件最近的 `package.json` 文件，并判断里面是否包含 `"type": "module"`, 我们的demo项目是包含的，于是会使用esbuild打包工具打包后进行读取。
+
+### 
